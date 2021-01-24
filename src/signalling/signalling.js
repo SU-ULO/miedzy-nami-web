@@ -9,18 +9,34 @@ const heartbeat = setInterval(function ping(){
 		ws.isAlive=false;
 		ws.ping();
 	});
-}, 10000);
+}, 5000);
 
 let servers=new Map();
-let clients=new Map();
+let players=new Map();
+
+const maxplayers=1000;
 
 class Peer
 {
 	constructor(socket)
 	{
 		this.socket=socket;
+		this.listed=false;
 	}
-	close(){}
+	open()
+	{
+		if(this.listed) return;
+		this.listed=true;
+	}
+	close()
+	{
+		if(!this.listed) return;
+		this.listed=false;
+	}
+	parse(msg)
+	{
+		return true;
+	}
 }
 
 class GameServer extends Peer
@@ -30,10 +46,21 @@ class GameServer extends Peer
 		super(socket);
 		this.key=key;
 	}
+	open()
+	{
+		if(this.listed) return;
+		super.open();
+		servers.set(this.key, this);
+	}
 	close()
 	{
+		if(!this.listed) return;
 		super.close();
 		servers.delete(this.key);
+	}
+	parse(msg)
+	{
+		return super.parse(msg);
 	}
 }
 
@@ -44,6 +71,38 @@ class Player extends Peer
 		super(socket);
 		this.id=id;
 	}
+	open()
+	{
+		if(this.listed) return;
+		super.open();
+		players.set(this.id, this);
+	}
+	close()
+	{
+		if(!this.listed) return;
+		super.close();
+		players.delete(this.id);
+	}
+	parse(msg)
+	{
+		let ch=msg.charAt(0);
+		if(ch=='L')
+		{
+			this.socket.send('L:'+JSON.stringify(listServers()));
+			return true;
+		}
+		return false;
+	}
+}
+
+function listServers()
+{
+	let arr=[];
+	for(let val of servers.values())
+	{
+		arr.push({key: val.key});
+	}
+	return arr;
 }
 
 function getRandomInt(min, max){
@@ -61,9 +120,20 @@ function genserverkey()
 		r=getRandomInt(0, parseInt("ZZZZZZZZZ", 36)).toString(36).toUpperCase();
 		++tries;
 	}
-	while(servers.has(r)||tries<=20)
+	while(servers.has(r)||tries<=100)
 	if(servers.has(r)) return false;
 	return r;
+}
+
+let clientiter=0;
+function genplayerid()
+{
+	do
+	{
+		clientiter=(clientiter+1)%2001;
+	}
+	while(players.has(clientiter));
+	return clientiter;
 }
 
 wss.on('connection', function connection(ws){
@@ -78,11 +148,13 @@ wss.on('connection', function connection(ws){
 		{
 			ws.close();
 		}
-	}, 10000)
+	}, 2000)
 	ws.on('message', function incoming(message){
+		if(typeof message !='string') ws.close();
+		if(message.length==0) ws.close();
 		if(peer)
 		{
-
+			if(!peer.parse(message)) ws.close();
 		}else
 		{
 			if(message==="s"||message==="S")
@@ -91,16 +163,25 @@ wss.on('connection', function connection(ws){
 				if(k)
 				{
 					peer=new GameServer(ws, k);
-					servers.set(peer.key, peer);
-					ws.send(peer.key);
+					peer.open();
+					ws.send("K:"+peer.key);
 				}else
 				{
+					ws.send("!R");
 					ws.close();
 				}
 			}
 			else if(message==="c"||message==="C")
 			{
-				ws.close();
+				if(players.size>=maxplayers)
+				{
+					ws.send("!M");
+					ws.close();
+				}else
+				{
+					peer=new Player(ws, genplayerid());
+					peer.open();
+				}
 			}else
 			{
 				ws.close();
