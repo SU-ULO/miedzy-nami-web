@@ -16,6 +16,30 @@ let players=new Map();
 
 const maxplayers=1000;
 
+function get_turn_config()
+{
+	return {
+		iceServers:[
+			{
+				urls: ["stun:stun.l.google.com:19302"]
+			},
+			{
+				urls: ["turn:rakbook.pl:3478"],
+				username: "test",
+				credential: "test123"
+			}
+		]
+	}
+}
+
+function split_cmd(cmd)
+{
+	let arr=cmd.split(':');
+	if(arr.length<2) return '';
+	arr.splice(0, 1);
+	return arr.join(':');
+}
+
 class Peer
 {
 	constructor(socket)
@@ -35,7 +59,7 @@ class Peer
 	}
 	parse(msg)
 	{
-		return true;
+		ws.close(4000, "PARSING_FAILED");
 	}
 }
 
@@ -60,7 +84,7 @@ class GameServer extends Peer
 	}
 	parse(msg)
 	{
-		return super.parse(msg);
+		super.parse(msg);
 	}
 }
 
@@ -70,6 +94,7 @@ class Player extends Peer
 	{
 		super(socket);
 		this.id=id;
+		this.connection=null;
 	}
 	open()
 	{
@@ -85,13 +110,21 @@ class Player extends Peer
 	}
 	parse(msg)
 	{
-		let ch=msg.charAt(0);
-		if(ch=='L')
+		if(msg=='L')
 		{
 			this.socket.send('L:'+JSON.stringify(listServers()));
 			return true;
 		}
-		return false;
+		super.parse(msg);
+	}
+}
+
+class Connection
+{
+	constructor()
+	{
+		this.server=null;
+		this.player=null;
 	}
 }
 
@@ -148,16 +181,16 @@ wss.on('connection', function connection(ws){
 		{
 			ws.close();
 		}
-	}, 2000)
+	}, 1000)
 	ws.on('message', function incoming(message){
 		if(typeof message !='string') ws.close();
 		if(message.length==0) ws.close();
 		if(peer)
 		{
-			if(!peer.parse(message)) ws.close();
+			peer.parse(message)
 		}else
 		{
-			if(message==="s"||message==="S")
+			if(message.startsWith("S"))
 			{
 				let k=genserverkey();
 				if(k)
@@ -165,22 +198,28 @@ wss.on('connection', function connection(ws){
 					peer=new GameServer(ws, k);
 					peer.open();
 					ws.send("K:"+peer.key);
+					if(message.startsWith("S:"))
+					{
+						peer.parse(message);
+					}
 				}else
 				{
-					ws.send("!R");
-					ws.close();
+					ws.close(4000, "FAILED_KEY_GEN");
 				}
 			}
-			else if(message==="c"||message==="C")
+			else if(message.startsWith("C"))
 			{
 				if(players.size>=maxplayers)
 				{
-					ws.send("!M");
-					ws.close();
+					ws.close(4000, "MAX_PLAYERS");
 				}else
 				{
 					peer=new Player(ws, genplayerid());
 					peer.open();
+					if(message.startsWith("C:"))
+					{
+						peer.parse(message);
+					}
 				}
 			}else
 			{
