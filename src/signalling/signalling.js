@@ -40,6 +40,13 @@ function split_cmd(cmd)
 	return arr.join(':');
 }
 
+function send_servers_refresh()
+{
+	players.forEach((p)=>{
+		p.socket.send('LIST:'+JSON.stringify(listServers()));
+	})
+}
+
 class Peer
 {
 	constructor(socket)
@@ -69,18 +76,30 @@ class GameServer extends Peer
 	{
 		super(socket);
 		this.key=key;
+		this.connections=new Map();
 	}
 	open()
 	{
 		if(this.listed) return;
 		super.open();
 		servers.set(this.key, this);
+		send_servers_refresh();
 	}
 	close()
 	{
 		if(!this.listed) return;
 		super.close();
 		servers.delete(this.key);
+		this.connections.forEach((conn)=>{conn.close()})
+		send_servers_refresh();
+	}
+	add_connection(conn)
+	{
+		let i=1;
+		while(this.connections.has(i)) ++i;
+		conn.id=i;
+		this.connections.set(conn.id, conn);
+		this.socket.send("JOIN:"+JSON.stringify({id: conn.id, webrtc: get_turn_config()}));
 	}
 	parse(msg)
 	{
@@ -107,13 +126,36 @@ class Player extends Peer
 		if(!this.listed) return;
 		super.close();
 		players.delete(this.id);
+		if(this.connection) this.connection.close();
+	}
+	join(server_key)
+	{
+		if(!servers.has(server_key))
+		{
+			this.socket.send("LEAVE");
+			return;
+		}
+		let s = servers.get(server_key);
+		let conn = new Connection(s, this);
+		s.add_connection(conn);
+		this.socket.send("JOIN:"+JSON.stringify({key: s.key, webrtc: get_turn_config()}));
 	}
 	parse(msg)
 	{
-		if(msg=='L')
+		if(msg=='LIST')
 		{
-			this.socket.send('L:'+JSON.stringify(listServers()));
+			this.socket.send('LIST:'+JSON.stringify(listServers()));
 			return true;
+		}
+		if(msg.startsWith('JOIN:'))
+		{
+			let cmd = split_cmd(msg);
+			this.join(cmd);
+			return;
+		}
+		if(msg=="LEAVE")
+		{
+			if(this.connection) this.connection.close()
 		}
 		super.parse(msg);
 	}
@@ -121,10 +163,23 @@ class Player extends Peer
 
 class Connection
 {
-	constructor()
+	constructor(server, player)
 	{
-		this.server=null;
-		this.player=null;
+		this.id=null;
+		this.server=server;
+		this.player=player;
+	}
+	close()
+	{
+		if(this.id)
+		{
+			this.server.socket.send("LEAVE:"+this.id);
+			this.server.connections.delete(this.id);
+			this.id=null;
+			this.server=null;
+			this.player.socket.send("LEAVE");
+			this.player=null;
+		}
 	}
 }
 
@@ -190,15 +245,15 @@ wss.on('connection', function connection(ws){
 			peer.parse(message)
 		}else
 		{
-			if(message.startsWith("S"))
+			if(message.startsWith("SERVER"))
 			{
 				let k=genserverkey();
 				if(k)
 				{
 					peer=new GameServer(ws, k);
 					peer.open();
-					ws.send("K:"+peer.key);
-					if(message.startsWith("S:"))
+					ws.send("KEY:"+peer.key);
+					if(message.startsWith("SERVER:"))
 					{
 						peer.parse(message);
 					}
@@ -207,7 +262,7 @@ wss.on('connection', function connection(ws){
 					ws.close(4000, "FAILED_KEY_GEN");
 				}
 			}
-			else if(message.startsWith("C"))
+			else if(message.startsWith("CLIENT"))
 			{
 				if(players.size>=maxplayers)
 				{
@@ -216,7 +271,7 @@ wss.on('connection', function connection(ws){
 				{
 					peer=new Player(ws, genplayerid());
 					peer.open();
-					if(message.startsWith("C:"))
+					if(message.startsWith("CLIENT:"))
 					{
 						peer.parse(message);
 					}
