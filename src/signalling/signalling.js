@@ -103,6 +103,28 @@ class GameServer extends Peer
 	}
 	parse(msg)
 	{
+		if(msg.startsWith("LEAVE:"))
+		{
+			let id=parseInt(split_cmd(msg));
+			if(this.connections.has(id))
+			{
+				this.connections.get(id).close();
+			}
+			return;
+		}
+		if(msg.startsWith("CONNECTION:"))
+		{
+			msg=split_cmd(msg);
+			let id=parseInt(msg.split(':', 1)[0]);
+			if(this.connections.has(id))
+			{
+				this.connections.get(id).send_to_client(split_cmd(msg));
+			}else
+			{
+				this.socket.send("LEAVE:"+id);
+			}
+			return;
+		}
 		super.parse(msg);
 	}
 }
@@ -136,8 +158,8 @@ class Player extends Peer
 			return;
 		}
 		let s = servers.get(server_key);
-		let conn = new Connection(s, this);
-		s.add_connection(conn);
+		this.connection = new Connection(s, this);
+		s.add_connection(this.connection);
 		this.socket.send("JOIN:"+JSON.stringify({key: s.key, webrtc: get_turn_config()}));
 	}
 	parse(msg)
@@ -156,6 +178,15 @@ class Player extends Peer
 		if(msg=="LEAVE")
 		{
 			if(this.connection) this.connection.close()
+			return;
+		}
+		if(msg.startsWith("CONNECTION:"))
+		{
+			if(this.connection)
+			{
+				this.connection.send_to_server(split_cmd(msg));
+			}
+			return;
 		}
 		super.parse(msg);
 	}
@@ -173,13 +204,27 @@ class Connection
 	{
 		if(this.id)
 		{
-			this.server.socket.send("LEAVE:"+this.id);
-			this.server.connections.delete(this.id);
-			this.id=null;
-			this.server=null;
-			this.player.socket.send("LEAVE");
-			this.player=null;
+			if(this.server)
+			{
+				this.server.socket.send("LEAVE:"+this.id);
+				this.server.connections.delete(this.id);
+			}
 		}
+		this.id=null;
+		this.server=null;
+		if(this.player)
+		{
+			this.player.socket.send("LEAVE");
+		}
+		this.player=null;
+	}
+	send_to_server(cmd)
+	{
+		if(this.server) this.server.socket.send("CONNECTION:"+this.id+":"+cmd);
+	}
+	send_to_client(cmd)
+	{
+		if(this.player) this.player.socket.send("CONNECTION:"+cmd);
 	}
 }
 
