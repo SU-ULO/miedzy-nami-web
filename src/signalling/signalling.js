@@ -9,7 +9,7 @@ const heartbeat = setInterval(function ping(){
 		ws.isAlive=false;
 		ws.ping();
 	});
-}, 5000);
+}, 10000);
 
 let servers=new Map();
 let players=new Map();
@@ -22,11 +22,6 @@ function get_turn_config()
 		iceServers:[
 			{
 				urls: ["stun:stun.l.google.com:19302"]
-			},
-			{
-				urls: ["turn:rakbook.pl:3478"],
-				username: "test",
-				credential: "test123"
 			}
 		]
 	}
