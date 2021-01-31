@@ -15,6 +15,7 @@ let servers=new Map();
 let players=new Map();
 
 const maxplayers=1000;
+const room_key_length=9;
 
 function get_turn_config()
 {
@@ -27,7 +28,7 @@ function get_turn_config()
 	}
 }
 
-function split_cmd(cmd)
+function extract_cmd(cmd)
 {
 	let arr=cmd.split(':');
 	if(arr.length<2) return '';
@@ -35,15 +36,31 @@ function split_cmd(cmd)
 	return arr.join(':');
 }
 
+function split_cmd(cmd)
+{
+	let arr=cmd.split(':');
+	if(arr.length<2)
+	{
+		if(arr.length==0) return ['', ''];
+		arr.push('');
+		return arr;
+	}
+	let first=arr.splice(0, 1);
+	first.push(arr.join(':'));
+	return first;
+}
+
 function send_servers_refresh()
 {
+	let msg='LIST:'+JSON.stringify(listServers());
 	players.forEach((p)=>{
-		p.socket.send('LIST:'+JSON.stringify(listServers()));
+		p.socket.send(msg);
 	})
 }
 
 class Peer
 {
+	static default_config={}
 	constructor(socket)
 	{
 		this.socket=socket;
@@ -63,14 +80,23 @@ class Peer
 	{
 		ws.close(4000, "PARSING_FAILED");
 	}
+	static parse_hello(hello)
+	{
+		return null;
+	}
+	generate_hello()
+	{
+		return {}
+	}
 }
 
 class GameServer extends Peer
 {
-	constructor(socket, key)
+	static default_config={key: null}
+	constructor(socket, config)
 	{
 		super(socket);
-		this.key=key;
+		this.key=config.key;
 		this.connections=new Map();
 	}
 	open()
@@ -100,7 +126,7 @@ class GameServer extends Peer
 	{
 		if(msg.startsWith("LEAVE:"))
 		{
-			let id=parseInt(split_cmd(msg));
+			let id=parseInt(extract_cmd(msg));
 			if(this.connections.has(id))
 			{
 				this.connections.get(id).close();
@@ -109,11 +135,11 @@ class GameServer extends Peer
 		}
 		if(msg.startsWith("CONNECTION:"))
 		{
-			msg=split_cmd(msg);
-			let id=parseInt(msg.split(':', 1)[0]);
+			msg=extract_cmd(msg);
+			let id=parseInt(split_cmd(msg)[0]);
 			if(this.connections.has(id))
 			{
-				this.connections.get(id).send_to_client(split_cmd(msg));
+				this.connections.get(id).send_to_client(extract_cmd(msg));
 			}else
 			{
 				this.socket.send("LEAVE:"+id);
@@ -121,6 +147,10 @@ class GameServer extends Peer
 			return;
 		}
 		super.parse(msg);
+	}
+	generate_hello()
+	{
+		return {key: this.key}
 	}
 }
 
@@ -149,7 +179,7 @@ class Player extends Peer
 	{
 		if(!servers.has(server_key))
 		{
-			this.socket.send("LEAVE");
+			this.socket.send("NO_SERVER");
 			return;
 		}
 		let s = servers.get(server_key);
@@ -166,7 +196,7 @@ class Player extends Peer
 		}
 		if(msg.startsWith('JOIN:'))
 		{
-			let cmd = split_cmd(msg);
+			let cmd = extract_cmd(msg);
 			this.join(cmd);
 			return;
 		}
@@ -179,7 +209,7 @@ class Player extends Peer
 		{
 			if(this.connection)
 			{
-				this.connection.send_to_server(split_cmd(msg));
+				this.connection.send_to_server(extract_cmd(msg));
 			}
 			return;
 		}
@@ -245,7 +275,7 @@ function genserverkey()
 	let tries=0;
 	let r;
 	do{
-		r=getRandomInt(0, parseInt("ZZZZZZZZZ", 36)).toString(36).toUpperCase();
+		r=getRandomInt(0, parseInt("Z".repeat(room_key_length), 36)).toString(36).toUpperCase().padStart(room_key_length, "0");
 		++tries;
 	}
 	while(servers.has(r)||tries<=100)
@@ -258,7 +288,7 @@ function genplayerid()
 {
 	do
 	{
-		clientiter=(clientiter+1)%2001;
+		clientiter=(clientiter+1)%2000+1;
 	}
 	while(players.has(clientiter));
 	return clientiter;
@@ -274,7 +304,7 @@ wss.on('connection', function connection(ws){
 	{
 		if(peer===null)
 		{
-			ws.close();
+			ws.close(4000, "TIMEOUT");
 		}
 	}, 1000)
 	ws.on('message', function incoming(message){
@@ -290,16 +320,29 @@ wss.on('connection', function connection(ws){
 				let k=genserverkey();
 				if(k)
 				{
-					peer=new GameServer(ws, k);
-					peer.open();
-					ws.send("KEY:"+peer.key);
+					
+					let conf;
 					if(message.startsWith("SERVER:"))
 					{
-						peer.parse(message);
+						conf=GameServer.parse_hello(extract_cmd(message));
+					}else
+					{
+						conf=GameServer.default_config;
+						conf.key=k;
 					}
+					if(conf)
+					{
+						peer=new GameServer(ws, conf);
+						peer.open();
+						ws.send("HELLO:"+JSON.stringify(peer.generate_hello()));
+					}else
+					{
+						ws.close(4000, "WRONG_PARAMS");
+					}
+					
 				}else
 				{
-					ws.close(4000, "FAILED_KEY_GEN");
+					ws.close(4000, "FAILED_KEY_RAND");
 				}
 			}
 			else if(message.startsWith("CLIENT"))
@@ -318,7 +361,7 @@ wss.on('connection', function connection(ws){
 				}
 			}else
 			{
-				ws.close();
+				ws.close(4000, "NO_TYPE");
 			}
 		}
 	})

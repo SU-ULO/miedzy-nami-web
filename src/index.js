@@ -3,7 +3,7 @@ const express = require('express');
 const app = express();
 const port = 80;
 
-const signalling = require('./signalling/signalling.js');
+const signalling = require('./signaling/signaling.js');
 
 app.disable('x-powered-by');
 
