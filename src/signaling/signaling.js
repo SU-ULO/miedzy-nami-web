@@ -156,10 +156,12 @@ class GameServer extends Peer
 
 class Player extends Peer
 {
-	constructor(socket, id)
+	static default_config={id: null, username: null}
+	constructor(socket, config)
 	{
 		super(socket);
-		this.id=id;
+		this.id=config.id;
+		this.username=config.username;
 		this.connection=null;
 	}
 	open()
@@ -214,6 +216,29 @@ class Player extends Peer
 			return;
 		}
 		super.parse(msg);
+	}
+	static parse_hello(hello)
+	{
+		let conf=this.default_config;
+		let parsed;
+		try
+		{
+			parsed=JSON.parse(hello);
+		}
+		catch(error)
+		{
+			return null;
+		}
+		if(parsed instanceof Object && parsed.hasOwnProperty("username"))
+		{
+			conf.username=parsed.username;
+			return conf;
+		}
+		return null;
+	}
+	generate_hello()
+	{
+		return {}
 	}
 }
 
@@ -328,10 +353,10 @@ wss.on('connection', function connection(ws){
 					}else
 					{
 						conf=GameServer.default_config;
-						conf.key=k;
 					}
 					if(conf)
 					{
+						conf.key=k;
 						peer=new GameServer(ws, conf);
 						peer.open();
 						ws.send("HELLO:"+JSON.stringify(peer.generate_hello()));
@@ -345,23 +370,35 @@ wss.on('connection', function connection(ws){
 					ws.close(4000, "FAILED_KEY_RAND");
 				}
 			}
-			else if(message.startsWith("CLIENT"))
+			else if(message.startsWith("CLIENT:"))
 			{
 				if(players.size>=maxplayers)
 				{
 					ws.close(4000, "MAX_PLAYERS");
 				}else
 				{
-					peer=new Player(ws, genplayerid());
-					peer.open();
-					if(message.startsWith("CLIENT:"))
+					conf=Player.parse_hello(extract_cmd(message));
+					if(conf)
 					{
-						peer.parse(message);
+						conf.id = genplayerid();
+						peer=new Player(ws, conf);
+						peer.open();
+						let hello=peer.generate_hello();
+						if(hello=={})
+						{
+							ws.send("HELLO");
+						}else
+						{
+							ws.send("HELLO"+JSON.stringify(hello));
+						}
+					}else
+					{
+						ws.close(4000, "WRONG_PARAMS");
 					}
 				}
 			}else
 			{
-				ws.close(4000, "NO_TYPE");
+				ws.close(4000, "NO_OR_WRONG_TYPE");
 			}
 		}
 	})
