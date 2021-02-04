@@ -120,7 +120,7 @@ class GameServer extends Peer
 		while(this.connections.has(i)) ++i;
 		conn.id=i;
 		this.connections.set(conn.id, conn);
-		this.socket.send("JOIN:"+JSON.stringify({id: conn.id, webrtc: get_turn_config()}));
+		this.socket.send("JOIN:"+JSON.stringify({id: conn.id, username: conn.player.username, webrtc: get_turn_config()}));
 	}
 	parse(msg)
 	{
