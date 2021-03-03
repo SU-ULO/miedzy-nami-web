@@ -1,5 +1,6 @@
 const port = 8080;
 const WebSocket = require('ws');
+const crypto = require("crypto")
 
 const wss = new WebSocket.Server({port: port});
 
@@ -17,12 +18,21 @@ let players=new Map();
 const maxplayers=1000;
 const room_key_length=9;
 
-function get_turn_config()
+function get_turn_config(userid)
 {
+	userid=(parseInt(Date.now()/1000)+3600)+':'+userid
 	return {
 		iceServers:[
-			{
+			/*{
 				urls: ["stun:stun.l.google.com:19302"]
+			},*/
+			{
+				urls: ["stun:rakbook.pl:3478"]
+			},
+			{
+				urls: ["turns:rakbook.pl:5349?transport=tcp"],
+				username: userid,
+				credential: crypto.createHmac('sha1', process.env.TURN_SECRET).update(userid).digest('base64')
 			}
 		]
 	}
