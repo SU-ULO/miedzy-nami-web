@@ -23,14 +23,11 @@ function get_turn_config(userid)
 	userid=(parseInt(Date.now()/1000)+3600)+':'+userid
 	return {
 		iceServers:[
-			/*{
-				urls: ["stun:stun.l.google.com:19302"]
-			},*/
 			{
-				urls: ["stun:rakbook.pl:3478"]
+				urls: ["stun:stun.l.google.com:19302"]
 			},
 			{
-				urls: ["turns:rakbook.pl:5349?transport=tcp"],
+				urls: ["turn:rakbook.pl:3478", "turn:rakbook.pl:3478?transport=tcp", "turns:rakbook.pl:5349?transport=tcp"],
 				username: userid,
 				credential: crypto.createHmac('sha1', process.env.TURN_SECRET).update(userid).digest('base64')
 			}
@@ -130,7 +127,7 @@ class GameServer extends Peer
 		while(this.connections.has(i)) ++i;
 		conn.id=i;
 		this.connections.set(conn.id, conn);
-		this.socket.send("JOIN:"+JSON.stringify({id: conn.id, username: conn.player.username, webrtc: get_turn_config()}));
+		this.socket.send("JOIN:"+JSON.stringify({id: conn.id, username: conn.player.username, webrtc: get_turn_config(this.key)}));
 	}
 	parse(msg)
 	{
@@ -197,7 +194,7 @@ class Player extends Peer
 		let s = servers.get(server_key);
 		this.connection = new Connection(s, this);
 		s.add_connection(this.connection);
-		this.socket.send("JOIN:"+JSON.stringify({key: s.key, webrtc: get_turn_config()}));
+		this.socket.send("JOIN:"+JSON.stringify({key: s.key, webrtc: get_turn_config(this.id)}));
 	}
 	parse(msg)
 	{
