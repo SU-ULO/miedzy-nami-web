@@ -99,7 +99,7 @@ class Peer
 
 class GameServer extends Peer
 {
-	static default_config={key: null}
+	static default_config={key: null, hidden: false}
 	constructor(socket, config)
 	{
 		super(socket);
@@ -158,6 +158,25 @@ class GameServer extends Peer
 	generate_hello()
 	{
 		return {key: this.key}
+	}
+	static parse_hello(hello)
+	{
+		let conf=this.default_config;
+		let parsed;
+		try
+		{
+			parsed=JSON.parse(hello);
+		}
+		catch(error)
+		{
+			return null;
+		}
+		if(parsed instanceof Object && parsed.hasOwnProperty("hidden"))
+		{
+			conf.hidden=parsed.hidden;
+			return conf;
+		}
+		return null;
 	}
 }
 
@@ -353,13 +372,10 @@ wss.on('connection', function connection(ws){
 				if(k)
 				{
 					
-					let conf;
+					let conf=GameServer.default_config;
 					if(message.startsWith("SERVER:"))
 					{
 						conf=GameServer.parse_hello(extract_cmd(message));
-					}else
-					{
-						conf=GameServer.default_config;
 					}
 					if(conf)
 					{
