@@ -99,12 +99,15 @@ class Peer
 
 class GameServer extends Peer
 {
-	static default_config={key: null, hidden: false}
+	static default_config={key: null, hidden: false, name: ""}
 	constructor(socket, config)
 	{
 		super(socket);
 		this.key=config.key;
 		this.connections=new Map();
+		this.hidden=config.hidden
+		this.name=config.name
+		this.gameinprogress=false
 	}
 	open()
 	{
@@ -140,7 +143,7 @@ class GameServer extends Peer
 			}
 			return;
 		}
-		if(msg.startsWith("CONNECTION:"))
+		else if(msg.startsWith("CONNECTION:"))
 		{
 			msg=extract_cmd(msg);
 			let id=parseInt(split_cmd(msg)[0]);
@@ -153,7 +156,20 @@ class GameServer extends Peer
 			}
 			return;
 		}
-		super.parse(msg);
+		else if(msg.startsWith("GAMEINPROGRESS:"))
+		{
+			msg=extract_cmd(msg);
+			if(msg=="YES")
+			{
+				this.gameinprogress=true;
+			}
+			else if(msg=="NO")
+			{
+				this.gameinprogress=false;
+			}
+			send_servers_refresh();
+		}
+		else super.parse(msg);
 	}
 	generate_hello()
 	{
@@ -171,9 +187,11 @@ class GameServer extends Peer
 		{
 			return null;
 		}
-		if(parsed instanceof Object && parsed.hasOwnProperty("hidden"))
+		if(parsed instanceof Object)
 		{
-			conf.hidden=parsed.hidden;
+			if(parsed.hasOwnProperty("hidden")) conf.hidden=parsed.hidden;
+			if(parsed.hasOwnProperty("name")) conf.name=parsed.name;
+			
 			return conf;
 		}
 		return null;
@@ -211,9 +229,20 @@ class Player extends Peer
 			return;
 		}
 		let s = servers.get(server_key);
+		if(s.connections.size>=9)
+		{
+			this.socket.send("SERVER_FULL");
+			return;
+		}
+		if(s.gameinprogress)
+		{
+			this.socket.send("GAME_IN_PROGRESS");
+			return;
+		}
 		this.connection = new Connection(s, this);
 		s.add_connection(this.connection);
 		this.socket.send("JOIN:"+JSON.stringify({key: s.key, webrtc: get_turn_config(this.id)}));
+		send_servers_refresh();
 	}
 	parse(msg)
 	{
@@ -222,18 +251,18 @@ class Player extends Peer
 			this.socket.send('LIST:'+JSON.stringify(listServers()));
 			return true;
 		}
-		if(msg.startsWith('JOIN:'))
+		else if(msg.startsWith('JOIN:'))
 		{
 			let cmd = extract_cmd(msg);
 			this.join(cmd);
 			return;
 		}
-		if(msg=="LEAVE")
+		else if(msg=="LEAVE")
 		{
 			if(this.connection) this.connection.close()
 			return;
 		}
-		if(msg.startsWith("CONNECTION:"))
+		else if(msg.startsWith("CONNECTION:"))
 		{
 			if(this.connection)
 			{
@@ -241,7 +270,7 @@ class Player extends Peer
 			}
 			return;
 		}
-		super.parse(msg);
+		else super.parse(msg);
 	}
 	static parse_hello(hello)
 	{
@@ -293,6 +322,7 @@ class Connection
 			this.player.socket.send("LEAVE");
 		}
 		this.player=null;
+		send_servers_refresh();
 	}
 	send_to_server(cmd)
 	{
@@ -309,12 +339,13 @@ function listServers()
 	let arr=[];
 	for(let val of servers.values())
 	{
-		arr.push({key: val.key});
+		if(!val.hidden) arr.push({key: val.key, name: val.name, players: val.connections.size+1, gameinprogress: val.gameinprogress});
 	}
 	return arr;
 }
 
-function getRandomInt(min, max){
+function getRandomInt(min, max)
+{
 	min = Math.ceil(min);
 	max = Math.floor(max);
 	return Math.floor(Math.random() * (max - min)) + min;
