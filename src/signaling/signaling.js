@@ -225,18 +225,18 @@ class Player extends Peer
 	{
 		if(!servers.has(server_key))
 		{
-			this.socket.send("NO_SERVER");
+			this.socket.send("SERVER_JOIN_ERROR:NO_SERVER");
 			return;
 		}
 		let s = servers.get(server_key);
 		if(s.connections.size>=9)
 		{
-			this.socket.send("SERVER_FULL");
+			this.socket.send("SERVER_JOIN_ERROR:SERVER_FULL");
 			return;
 		}
 		if(s.gameinprogress)
 		{
-			this.socket.send("GAME_IN_PROGRESS");
+			this.socket.send("SERVER_JOIN_ERROR:GAME_IN_PROGRESS");
 			return;
 		}
 		this.connection = new Connection(s, this);
