@@ -108,6 +108,7 @@ class GameServer extends Peer
 		this.hidden=config.hidden
 		this.name=config.name
 		this.gameinprogress=false
+		this.verified=false;
 	}
 	open()
 	{
@@ -339,7 +340,12 @@ function listServers()
 	let arr=[];
 	for(let val of servers.values())
 	{
-		if(!val.hidden) arr.push({key: val.key, name: val.name, players: val.connections.size+1, gameinprogress: val.gameinprogress});
+		if(!val.hidden) arr.push(
+			{key: val.key,
+			name: val.name,
+			players: val.connections.size+1,
+			gameinprogress: val.gameinprogress,
+			verified: val.verified});
 	}
 	return arr;
 }
@@ -463,3 +469,17 @@ wss.on('connection', function connection(ws){
 })
 
 console.log(`signaling listening on port ${port}`);
+
+function verifyrooms(keys)
+{
+	for(k of keys)
+	{
+		if(!(k instanceof String)) continue;
+		if(servers.has(k.toUpperCase()))
+		{
+			servers.get(k).verified=true;
+		}
+	}
+}
+
+exports.verifyrooms=verifyrooms;
