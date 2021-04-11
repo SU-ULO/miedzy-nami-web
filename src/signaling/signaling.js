@@ -347,6 +347,7 @@ function listServers()
 			gameinprogress: val.gameinprogress,
 			verified: val.verified});
 	}
+	console.log(arr);
 	return arr;
 }
 
@@ -474,12 +475,14 @@ function verifyrooms(keys)
 {
 	for(k of keys)
 	{
-		if(!(k instanceof String)) continue;
-		if(servers.has(k.toUpperCase()))
+		if(typeof k != "string") continue;
+		k=k.toUpperCase();
+		if(servers.has(k))
 		{
 			servers.get(k).verified=true;
 		}
 	}
+	send_servers_refresh();
 }
 
 exports.verifyrooms=verifyrooms;
