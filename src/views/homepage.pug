@@ -1,13 +1,23 @@
 doctype html
 html(lang='pl')
+  link( type='text/css' rel='stylesheet' id='dark-mode-custom-link')
+  link( type='text/css' rel='stylesheet' id='dark-mode-general-link')
+  style( lang='en' type='text/css' id='dark-mode-custom-style')
+  style( lang='en' type='text/css' id='dark-mode-native-style')
   head
     meta(charset='utf-8')
     title Między Nami
-    link(rel='stylesheet', href='/static/style.css')
+    link(rel='stylesheet' href='/static/index.css')
   body
-    h1 Między Nami
-    a(href='game') gra
-    br
-    | Rekomendujemy Brave, Chromium lub Chrome
-    br
-    | Firefox może mieć problemy z wydajnością, Opera ma problemy z Voice Chatem
+    div(class='title')
+      h1 Między Nami
+      h2 Drzwi otwarte ULO 2021
+    div(class='start')
+      button(type='button' name='button' onclick='location.href=\'game\';') GRA
+    div(class='info')
+      p Gra działa na urządzeniach mobilnych, ale zalecamy komputer
+      p Rekomendujemy Brave, Chromium lub Chrome
+      p Firefox może mieć problemy z wydajnością, Opera ma problemy z Voice Chatem
+      p Podczas ładowania gry prosimy o cierpliwość
+      p najpierw pobieranie ok. 70 MB (pasek ładowania)
+      p potem ok. 30s włączania gry

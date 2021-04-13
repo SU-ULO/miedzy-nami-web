@@ -1,0 +1,42 @@
+@import "./colours.css";
+
+body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    padding-top: 20px;
+    padding-left: 50px;
+    padding-right: 50px;
+
+    font-family: "Helvetica", sans-serif;
+    background-color: var(--cream);
+    color: var(--dark);
+}
+div {
+    padding: 30px 0px 30px 0px;
+}
+h1 {
+    font-size: 46px;
+    text-align: center;
+    margin-bottom: 5px;
+}
+h2 {
+    font-size: 24px;
+    text-align: center;
+    margin-top: 5px;
+}
+
+button {
+    border: none;
+    text-decoration: none;
+    color: white;
+    background-color: var(--dark);
+    font-size: 32px;
+    padding: 15px 30px;
+    transition: 0.3s;
+}
+button:hover {
+    background-color: var(--orange);
+    cursor: pointer;
+}
