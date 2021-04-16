@@ -485,4 +485,19 @@ function verifyrooms(keys)
 	send_servers_refresh();
 }
 
+function privatiserooms(keys)
+{
+	for(k of keys)
+	{
+		if(typeof k != "string") continue;
+		k=k.toUpperCase();
+		if(servers.has(k))
+		{
+			servers.get(k).hidden=true;
+		}
+	}
+	send_servers_refresh();
+}
+
 exports.verifyrooms=verifyrooms;
+exports.privatiserooms=privatiserooms;

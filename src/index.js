@@ -20,9 +20,11 @@ app.disable('etag');
 
 const homepage = require(path.join(__dirname, 'routes', 'homepage.js'));
 const roomverification = require(path.join(__dirname, 'routes', 'roomverification.js'));
+const roomprivatisation = require(path.join(__dirname, 'routes', 'roomprivatisation.js'));
 
 app.use('/', homepage);
 app.use('/roomverification', roomverification);
+app.use('/roomprivatisation', roomprivatisation);
 
 app.listen(port, () => {
 	console.log(`miedzy-nami-web listening on port ${port}`);
