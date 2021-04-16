@@ -10,7 +10,7 @@ const heartbeat = setInterval(function ping(){
 		ws.isAlive=false;
 		ws.ping();
 	});
-}, 10000);
+}, 20000);
 
 let servers=new Map();
 let players=new Map();
