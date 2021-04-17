@@ -469,8 +469,6 @@ wss.on('connection', function connection(ws){
 	});
 })
 
-console.log(`signaling listening on port ${port}`);
-
 function verifyrooms(keys)
 {
 	for(k of keys)
@@ -479,7 +477,9 @@ function verifyrooms(keys)
 		k=k.toUpperCase();
 		if(servers.has(k))
 		{
-			servers.get(k).verified=true;
+			let s = servers.get(k);
+			s.verified=true;
+			s.hidden=false;
 		}
 	}
 	send_servers_refresh();
@@ -501,3 +501,5 @@ function privatiserooms(keys)
 
 exports.verifyrooms=verifyrooms;
 exports.privatiserooms=privatiserooms;
+
+console.log(`signaling listening on port ${port}`);
