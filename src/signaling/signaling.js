@@ -59,19 +59,19 @@ function split_cmd(cmd)
 
 function send_servers_refresh()
 {
-	let msg='LIST:'+JSON.stringify(listServers());
 	players.forEach((p)=>{
-		p.socket.send(msg);
-	})
+		p.socket.send('LIST:'+JSON.stringify(listServers(p.game_version)));
+	});
 }
 
 class Peer
 {
-	static default_config={}
+	static default_config={game_version: "browser"}
 	constructor(socket)
 	{
 		this.socket=socket;
 		this.listed=false;
+		this.game_version="";
 	}
 	open()
 	{
@@ -99,7 +99,7 @@ class Peer
 
 class GameServer extends Peer
 {
-	static default_config={key: null, hidden: false, name: ""}
+	static default_config={key: null, hidden: false, name: "", game_version: "browser"}
 	constructor(socket, config)
 	{
 		super(socket);
@@ -107,8 +107,9 @@ class GameServer extends Peer
 		this.connections=new Map();
 		this.hidden=config.hidden
 		this.name=config.name
-		this.gameinprogress=false
+		this.gameinprogress=false;
 		this.verified=false;
+		this.game_version=config.game_version;
 	}
 	open()
 	{
@@ -192,6 +193,7 @@ class GameServer extends Peer
 		{
 			if(parsed.hasOwnProperty("hidden")) conf.hidden=parsed.hidden;
 			if(parsed.hasOwnProperty("name")) conf.name=parsed.name;
+			if(parsed.hasOwnProperty("game_version")) conf.game_version=parsed.game_version;
 			
 			return conf;
 		}
@@ -201,13 +203,14 @@ class GameServer extends Peer
 
 class Player extends Peer
 {
-	static default_config={id: null, username: null}
+	static default_config={id: null, username: null, game_version: "browser"}
 	constructor(socket, config)
 	{
 		super(socket);
 		this.id=config.id;
 		this.username=config.username;
 		this.connection=null;
+		this.game_version=config.game_version;
 	}
 	open()
 	{
@@ -230,6 +233,12 @@ class Player extends Peer
 			return;
 		}
 		let s = servers.get(server_key);
+		console.log(this.game_version);
+		if(s.game_version!=this.game_version)
+		{
+			this.socket.send("SERVER_JOIN_ERROR:WRONG_VERSION");
+			return;
+		}
 		if(s.connections.size>=9)
 		{
 			this.socket.send("SERVER_JOIN_ERROR:SERVER_FULL");
@@ -249,7 +258,7 @@ class Player extends Peer
 	{
 		if(msg=='LIST')
 		{
-			this.socket.send('LIST:'+JSON.stringify(listServers()));
+			this.socket.send('LIST:'+JSON.stringify(listServers(this.game_version)));
 			return true;
 		}
 		else if(msg.startsWith('JOIN:'))
@@ -285,9 +294,10 @@ class Player extends Peer
 		{
 			return null;
 		}
-		if(parsed instanceof Object && parsed.hasOwnProperty("username"))
+		if(parsed instanceof Object)
 		{
-			conf.username=parsed.username;
+			if(parsed.hasOwnProperty("game_version")) conf.game_version=parsed.game_version;
+			if(parsed.hasOwnProperty("username")) conf.username=parsed.username;
 			return conf;
 		}
 		return null;
@@ -335,19 +345,18 @@ class Connection
 	}
 }
 
-function listServers()
+function listServers(game_version)
 {
 	let arr=[];
 	for(let val of servers.values())
 	{
-		if(!val.hidden) arr.push(
+		if(!val.hidden && val.game_version==game_version) arr.push(
 			{key: val.key,
 			name: val.name,
 			players: val.connections.size+1,
 			gameinprogress: val.gameinprogress,
 			verified: val.verified});
 	}
-	console.log(arr);
 	return arr;
 }
 
@@ -401,7 +410,7 @@ wss.on('connection', function connection(ws){
 		if(message.length==0) ws.close();
 		if(peer)
 		{
-			peer.parse(message)
+			peer.parse(message);
 		}else
 		{
 			if(message.startsWith("SERVER"))
