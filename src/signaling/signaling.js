@@ -1,6 +1,6 @@
 const port = 8080;
 const WebSocket = require('ws');
-const crypto = require("crypto")
+const turn_config = require('./config.js');
 
 const wss = new WebSocket.Server({port: port});
 
@@ -17,23 +17,6 @@ let players=new Map();
 
 const maxplayers=1000;
 const room_key_length=9;
-
-function get_turn_config(userid)
-{
-	userid=(parseInt(Date.now()/1000)+3600)+':'+userid
-	return {
-		iceServers:[
-			{
-				urls: ["stun:stun.l.google.com:19302"]
-			},
-			{
-				urls: ["turn:rakbook.pl:3478", "turn:rakbook.pl:3478?transport=tcp", "turns:rakbook.pl:5349?transport=tcp"],
-				username: userid,
-				credential: crypto.createHmac('sha1', process.env.TURN_SECRET).update(userid).digest('base64')
-			}
-		]
-	}
-}
 
 function extract_cmd(cmd)
 {
@@ -132,7 +115,7 @@ class GameServer extends Peer
 		while(this.connections.has(i)) ++i;
 		conn.id=i;
 		this.connections.set(conn.id, conn);
-		this.socket.send("JOIN:"+JSON.stringify({id: conn.id, username: conn.player.username, webrtc: get_turn_config(this.key)}));
+		this.socket.send("JOIN:"+JSON.stringify({id: conn.id, username: conn.player.username, webrtc: turn_config.get_turn_config(this.key)}));
 	}
 	parse(msg)
 	{
@@ -251,7 +234,7 @@ class Player extends Peer
 		}
 		this.connection = new Connection(s, this);
 		s.add_connection(this.connection);
-		this.socket.send("JOIN:"+JSON.stringify({key: s.key, webrtc: get_turn_config(this.id)}));
+		this.socket.send("JOIN:"+JSON.stringify({key: s.key, webrtc: turn_config.get_turn_config(this.id)}));
 		send_servers_refresh();
 	}
 	parse(msg)
